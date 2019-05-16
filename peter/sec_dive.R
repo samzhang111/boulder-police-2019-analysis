@@ -2,7 +2,7 @@ library(reshape2)
 library(magrittr)
 library(dplyr)
 library(ggplot2)
-library(RColorBrewer)
+library(viridis)
 
 DATA.DIR = '../data/'
 
@@ -59,6 +59,7 @@ race.search.outcomes = data %>%
     table %>%
     fisher.test
 
+# given a search was performed, calc posterior probabilities that contraband was found for diff races
 prob.cont.given.searched.by.race = function(x,r){ data %>%
                                                          filter(searched==1) %>%
                                                          filter(race==r) %>%
@@ -66,7 +67,7 @@ prob.cont.given.searched.by.race = function(x,r){ data %>%
                                                          as.matrix %>%
                                                          unif.beta.updated(x,.) %>%
                                                          return }
-x = seq(0,1,.001)
+
 
 data$raceethn2 = data$race %>% as.character
 to.change = data$ethnic=='H'
@@ -79,3 +80,27 @@ plot.df = plot.df %>% melt('x') %>% set_colnames(c('x','race','post'))
 p = ggplot( plot.df, aes(x=x, y=post, color=race, group=race) ) +
     geom_line() +
     scale_colour_brewer(palette = 'Accent')
+
+
+# posterior density for probability of "suspsicious stop" by race
+prob.susp.by.race = function(x,r){ data %>%
+                                       filter(raceethn2==r) %>%
+                                       select(rpt2.suspicious) %>%
+                                       as.matrix %>%
+                                       unif.beta.updated(x,.) %>%
+                                       return }
+
+x = seq(0,.13,.001)
+plot.df = sapply(data %>%
+                 group_by(raceethn2) %>%
+                 filter(n()>100) %>% as.data.frame %>% 
+                 pull(raceethn2) %>% 
+                 unique,
+                 function(r){x %>% prob.susp.by.race(r)}) %>% as.data.frame
+
+plot.df$x = x
+plot.df = plot.df %>% melt('x') %>% set_colnames(c('x','race','post'))
+p = ggplot( plot.df, aes(x=x, y=post, color=as.factor(race), group=race) ) +
+    geom_line() +
+    xlab('Prob of Stopping bc "Suspicious"') + ylab('Posterior Density')
+p
